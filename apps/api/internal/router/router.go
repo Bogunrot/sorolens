@@ -1,10 +1,12 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/sorolens/sorolens/apps/api/internal/graph"
 	"github.com/sorolens/sorolens/apps/api/internal/handler"
 	"github.com/sorolens/sorolens/apps/api/internal/middleware"
 )
@@ -20,6 +22,11 @@ func New(h *handler.Handler) http.Handler {
 	r.Use(middleware.CORS)
 	r.Use(middleware.Recoverer(h.Logger))
 	r.Use(middleware.Logger(h.Logger))
+	// Audit trail for every mutating /api/ request (issue #122). It sits
+	// outside rate limiting, content-type and auth checks so their
+	// rejections are audited too, and inside Recoverer so a panic is
+	// recorded as 500 before being recovered.
+	r.Use(middleware.Audit(h.Store, h.Logger, "/api/"))
 	r.Use(chiMiddleware.StripSlashes)
 
 	r.Use(middleware.RateLimit(h.RedisClient, h.Store))
@@ -27,6 +34,17 @@ func New(h *handler.Handler) http.Handler {
 	// Health (not rate-limited)
 	r.Get("/health", h.Health)
 	r.Get("/readyz", h.Readyz)
+
+	// GraphQL (issue #125): read-only, POST only. Same credential rules as
+	// the REST read routes: anonymous is allowed, an API key needs
+	// read:contracts.
+	gql, err := graph.NewHandler(h.Store, h.GraphQL)
+	if err != nil {
+		// Only fails if the embedded persisted queries are unreadable,
+		// which is a build defect.
+		panic(fmt.Sprintf("graphql handler: %v", err))
+	}
+	r.With(middleware.RequireScopes(h.Store, h.Logger)).Post("/graphql", gql.ServeHTTP)
 
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {
@@ -79,7 +97,15 @@ func New(h *handler.Handler) http.Handler {
 			r.Get("/keys", h.ListAPIKeys)
 			r.Post("/keys", h.CreateAPIKey)
 			r.Delete("/keys/{id}", h.RevokeAPIKey)
+			r.Get("/audit", h.ListAuditEvents)
 		})
+
+		// Watched accounts: contracts deployed by these accounts are tracked
+		// automatically by the indexer (issue #123). Same role rules as
+		// contract registration.
+		r.With(scope, contributor).Post("/watched-accounts", h.AddWatchedAccount)
+		get("/watched-accounts", h.ListWatchedAccounts)
+		r.With(scope, contributor).Delete("/watched-accounts/{id}", h.DeleteWatchedAccount)
 
 		// Watchlist
 		r.Route("/watchlist", func(r chi.Router) {

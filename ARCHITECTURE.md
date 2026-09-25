@@ -131,6 +131,37 @@ This flow runs for all contracts in "active" status on every 5-minute cron tick.
 8. Releases global Redis lock.
 ```
 
+### 2.3 Contract discovery (watched accounts)
+
+Runs at the start of every pass, before the per-contract loop, so a newly
+discovered contract is indexed in the same pass. Skipped for a network whose
+RPC client cannot serve `getTransactions` or when the store has no discovery
+support.
+
+```
+1. Load watched_accounts. If there are none, move the discovery cursor
+   (indexer_cursors row 'discovery:<network>') to the tip and stop, so adding
+   the first account never triggers a scan of stale history.
+
+2. Page through RPC getTransactions from cursor + 1 (first run: tip - 720
+   ledgers, ~1 hour), 200 per page, at most 50 pages per pass.
+
+3. For each SUCCESS transaction, decode the envelope (services/indexer/
+   internal/discovery). A Soroban tx has exactly one operation; when it is an
+   InvokeHostFunction CREATE_CONTRACT / CREATE_CONTRACT_V2, derive the
+   contract id = sha256(HashIDPreimage{CONTRACT_ID, sha256(passphrase),
+   preimage}).
+
+4. If the operation source (else the tx source) or the from-address deployer
+   is watched: insert the contract as status 'active', label
+   'discovered_by:<account>', seed sync_state.last_ledger = deploy_ledger - 1
+   and bump watched_accounts.discovered_count, in one transaction. An already
+   tracked contract is left untouched.
+
+5. Advance the discovery cursor to the last fully scanned ledger. On a store
+   error the cursor stops before that ledger so the deployment is retried.
+```
+
 ---
 
 ## 3. Postgres Schema (DDL)
@@ -303,6 +334,36 @@ CREATE INDEX idx_api_keys_hash ON api_keys (key_hash) WHERE revoked_at IS NULL;
 -- testnet, mainnet, and futurenet simultaneously. Existing rows are
 -- backfilled to 'testnet' for backward compatibility.
 -- ============================================================
+
+-- ============================================================
+-- watched_accounts (migration 000009): contract discovery.
+-- Contracts deployed by these accounts are tracked automatically.
+-- ============================================================
+CREATE TABLE watched_accounts (
+    account_id       TEXT        PRIMARY KEY,
+    added_by         TEXT        NOT NULL DEFAULT '',
+    discovered_count BIGINT      NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- audit_events (migration 000010): one row per mutating API
+-- request. Only a SHA-256 of the request body is stored.
+-- ============================================================
+CREATE TABLE audit_events (
+    id                BIGSERIAL   PRIMARY KEY,
+    actor             TEXT        NOT NULL DEFAULT '',
+    action            TEXT        NOT NULL,          -- "<METHOD> <route pattern>"
+    resource_type     TEXT        NOT NULL DEFAULT '',
+    resource_id       TEXT        NOT NULL DEFAULT '',
+    ip                TEXT        NOT NULL DEFAULT '',
+    user_agent        TEXT        NOT NULL DEFAULT '',
+    request_body_hash TEXT        NOT NULL DEFAULT '',
+    status            INTEGER     NOT NULL,          -- HTTP response status
+    at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_events_at ON audit_events (at);
 ```
 
 ### Index justifications
@@ -318,6 +379,7 @@ CREATE INDEX idx_api_keys_hash ON api_keys (key_hash) WHERE revoked_at IS NULL;
 | `idx_invocations_status` | Supports the "show only failures" filter on the invocations list. |
 | `idx_storage_live_until` | The TTL health view needs to order by `live_until_ledger ASC` for a given contract; partial index on `status = 'live'` avoids scanning archived rows. |
 | `idx_storage_durability` | Supports filtering the storage view by entry type. |
+| `idx_audit_events_at` | The admin audit query filters on `since`; pagination itself walks the primary key newest first. |
 
 ---
 
@@ -342,8 +404,8 @@ keyed by the chi route pattern (`internal/middleware/scopes.go`):
 
 | Scope | Grants |
 |---|---|
-| `read:contracts` | contract, event, invocation, storage, stats, and snapshot reads |
-| `write:contracts` | `POST /api/v1/contracts` |
+| `read:contracts` | contract, event, invocation, storage, stats, and snapshot reads; `GET /api/v1/watched-accounts`; `POST /graphql` |
+| `write:contracts` | `POST /api/v1/contracts`; `POST`/`DELETE /api/v1/watched-accounts` |
 | `read:watchdog` | all `/api/v1/watchdog/*` reads |
 | `admin:*` | everything, including API key management |
 
@@ -624,6 +686,119 @@ Network-wide summary across all tracked contracts.
   "indexer_last_run_at": "2026-07-26T10:00:01Z"
 }
 ```
+
+---
+
+### 4.8 Watched accounts (contract discovery)
+
+Contracts deployed by a watched account are tracked automatically within one
+indexer pass (see 2.3), labelled `discovered_by:<account_id>`. Writes need the
+contributor role (like `POST /contracts`); reads are open.
+
+#### `POST /api/v1/watched-accounts`
+
+Body: `{ "account_id": "G..." }` (a checksummed Stellar account strkey).
+Returns `201` when newly watched, `200` with the existing row when already
+watched, `422` for an invalid account id.
+
+**Response:**
+```json
+{
+  "account_id": "GAAQ...DZ7H",
+  "added_by": "user-123",
+  "discovered_count": 0,
+  "created_at": "2026-09-25T10:00:00Z"
+}
+```
+
+#### `GET /api/v1/watched-accounts`
+
+`{ "watched_accounts": [ ...same shape... ] }`, oldest first.
+
+#### `DELETE /api/v1/watched-accounts/:id`
+
+Stop watching the account (`:id` is the account id). Returns `204`, or `404`
+when it was not watched. Contracts it already discovered stay tracked.
+
+---
+
+### 4.9 Audit log
+
+Every non-GET request under `/api/` produces an `audit_events` row after the
+handler returns, including requests rejected by auth, content-type checks or
+rate limiting (the row carries the response status) and handlers that panic
+(recorded as `500`). The actor is the
+caller's user id or GitHub login, else a non-reversible API key fingerprint
+(`apikey:<sha256 prefix>`), else `anonymous`. The request body is never
+stored, only its SHA-256. Rows are written in the background with a bounded
+number of in-flight writes, so a slow or failing audit store never delays or
+fails the request.
+
+#### `GET /api/v1/admin/audit?since=&limit=&cursor=`
+
+Admin role only. `since` is an inclusive RFC 3339 timestamp, `limit` defaults
+to 100 (max 500). Newest first; pass `next_cursor` back as `cursor`.
+
+**Response `200`:**
+```json
+{
+  "events": [
+    {
+      "id": 15,
+      "actor": "user-123",
+      "action": "DELETE /api/v1/watched-accounts/{id}",
+      "resource_type": "watched-accounts",
+      "resource_id": "GAAQ...DZ7H",
+      "ip": "203.0.113.7",
+      "user_agent": "curl/8.5.0",
+      "request_body_hash": "e3b0c442...b855",
+      "status": 204,
+      "at": "2026-09-25T10:00:00Z"
+    }
+  ],
+  "next_cursor": "MTU="
+}
+```
+
+---
+
+### 4.10 GraphQL: `POST /graphql`
+
+A read-only GraphQL endpoint beside the REST API for clients that want to
+select exact fields and traverse relationships in one call. Schema-first with
+gqlgen: `apps/api/internal/graph/schema.graphqls` (regenerate with
+`go generate ./internal/graph`). It covers contracts, events, invocations,
+storage, stats and the watchdog, and resolves only through existing store
+methods.
+
+```graphql
+{
+  contract(id: "C...") {
+    id
+    events(first: 10) { type ledger }
+    stats { eventCount invocationCount }
+    monitor { status }
+    alerts(first: 5) { severity message }
+  }
+}
+```
+
+- **Auth:** same rules as REST reads: anonymous is allowed, an API key needs
+  `read:contracts`. Standard GraphQL POST only; GraphQL requests are not
+  audited because nothing in the schema mutates state.
+- **N+1:** relationship fields (`Alert.contract`, `Contract.monitor`,
+  `Contract.stats`, `Contract.events`, ...) go through per-request
+  dataloaders. Sibling lookups are collected into one batch and each distinct
+  key is fetched once per request.
+- **Limits:** every `first` argument is capped at 100. Each operation must fit
+  `GRAPHQL_COMPLEXITY_LIMIT` (default 5000), where a list field costs its page
+  size times its children, so wide or deep queries are rejected before any
+  store call.
+- **Persisted queries:** automatic persisted queries are supported, and the
+  queries in `internal/graph/persisted/` are preloaded, so clients can send
+  `{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"<sha256>"}}}`.
+  With `GRAPHQL_PERSISTED_ONLY=true` only those allowlisted queries run and
+  introspection is disabled.
 
 ---
 

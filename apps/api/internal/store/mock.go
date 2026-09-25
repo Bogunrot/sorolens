@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -25,6 +26,11 @@ type MockStore struct {
 	users              map[string]User
 	healthScores       map[string]ContractHealthScore
 	indexerCursors     map[string]uint32
+	watchedAccounts    map[string]WatchedAccount
+
+	// auditMu guards auditEvents: the audit middleware writes asynchronously.
+	auditMu     sync.Mutex
+	auditEvents []AuditEvent
 
 	// Error injection
 	UpsertContractErr   error
@@ -42,6 +48,7 @@ type MockStore struct {
 	GetUserErr          error
 	ListUpgradesErr     error
 	GetHealthScoreErr   error
+	InsertAuditErr      error
 }
 
 // NewMockStore returns an initialized MockStore.
@@ -55,6 +62,7 @@ func NewMockStore() *MockStore {
 		alertSubscriptions: make([]AlertSubscription, 0),
 		users:              make(map[string]User),
 		indexerCursors:     make(map[string]uint32),
+		watchedAccounts:    make(map[string]WatchedAccount),
 	}
 }
 

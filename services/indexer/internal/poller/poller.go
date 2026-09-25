@@ -139,6 +139,10 @@ func (p *Poller) processAll(ctx context.Context) error {
 		p.log.Warn("failed to ensure next month partition", "err", err)
 	}
 
+	// Track contracts deployed by watched accounts first so they are
+	// indexed in this same pass (issue #123).
+	p.runDiscovery(ctx)
+
 	var cursor string
 	for {
 		// Check for shutdown between contract batches.
