@@ -33,6 +33,7 @@ var routeScopes = map[string]string{
 	"POST /graphql": ScopeReadContracts,
 
 	"GET /api/v1/stats/global": ScopeReadContracts,
+	"GET /api/v1/compare":      ScopeReadContracts,
 
 	"GET /api/v1/contracts":                  ScopeReadContracts,
 	"POST /api/v1/contracts":                 ScopeWriteContracts,
@@ -41,6 +42,7 @@ var routeScopes = map[string]string{
 	"GET /api/v1/contracts/{id}/invocations": ScopeReadContracts,
 	"GET /api/v1/contracts/{id}/storage":     ScopeReadContracts,
 	"GET /api/v1/contracts/{id}/stats":       ScopeReadContracts,
+	"GET /api/v1/contracts/{id}/summary":     ScopeReadContracts,
 	"GET /api/v1/contracts/{id}/forecast":    ScopeReadContracts,
 	"GET /api/v1/contracts/{id}/snapshot":    ScopeReadContracts,
 	"GET /api/v1/contracts/{id}/stream":      ScopeReadContracts,

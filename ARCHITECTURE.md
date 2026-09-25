@@ -689,116 +689,21 @@ Network-wide summary across all tracked contracts.
 
 ---
 
-### 4.8 Watched accounts (contract discovery)
+### 4.8 Dashboard summary
 
-Contracts deployed by a watched account are tracked automatically within one
-indexer pass (see 2.3), labelled `discovered_by:<account_id>`. Writes need the
-contributor role (like `POST /contracts`); reads are open.
+#### `GET /api/v1/contracts/:id/summary`
 
-#### `POST /api/v1/watched-accounts`
+Composite document for the contract dashboard: totals, the newest event, the
+newest invocation, and the cached health score, so a page load costs one
+request instead of four. Each sub-query is an aggregate or a `LIMIT 1` newest-row
+lookup, so the work per request is constant (no per-row queries). Responses are
+memoized in-process for 5 seconds.
 
-Body: `{ "account_id": "G..." }` (a checksummed Stellar account strkey).
-Returns `201` when newly watched, `200` with the existing row when already
-watched, `422` for an invalid account id.
-
-**Response:**
-```json
-{
-  "account_id": "GAAQ...DZ7H",
-  "added_by": "user-123",
-  "discovered_count": 0,
-  "created_at": "2026-09-25T10:00:00Z"
-}
-```
-
-#### `GET /api/v1/watched-accounts`
-
-`{ "watched_accounts": [ ...same shape... ] }`, oldest first.
-
-#### `DELETE /api/v1/watched-accounts/:id`
-
-Stop watching the account (`:id` is the account id). Returns `204`, or `404`
-when it was not watched. Contracts it already discovered stay tracked.
-
----
-
-### 4.9 Audit log
-
-Every non-GET request under `/api/` produces an `audit_events` row after the
-handler returns, including requests rejected by auth, content-type checks or
-rate limiting (the row carries the response status) and handlers that panic
-(recorded as `500`). The actor is the
-caller's user id or GitHub login, else a non-reversible API key fingerprint
-(`apikey:<sha256 prefix>`), else `anonymous`. The request body is never
-stored, only its SHA-256. Rows are written in the background with a bounded
-number of in-flight writes, so a slow or failing audit store never delays or
-fails the request.
-
-#### `GET /api/v1/admin/audit?since=&limit=&cursor=`
-
-Admin role only. `since` is an inclusive RFC 3339 timestamp, `limit` defaults
-to 100 (max 500). Newest first; pass `next_cursor` back as `cursor`.
-
-**Response `200`:**
-```json
-{
-  "events": [
-    {
-      "id": 15,
-      "actor": "user-123",
-      "action": "DELETE /api/v1/watched-accounts/{id}",
-      "resource_type": "watched-accounts",
-      "resource_id": "GAAQ...DZ7H",
-      "ip": "203.0.113.7",
-      "user_agent": "curl/8.5.0",
-      "request_body_hash": "e3b0c442...b855",
-      "status": 204,
-      "at": "2026-09-25T10:00:00Z"
-    }
-  ],
-  "next_cursor": "MTU="
-}
-```
-
----
-
-### 4.10 GraphQL: `POST /graphql`
-
-A read-only GraphQL endpoint beside the REST API for clients that want to
-select exact fields and traverse relationships in one call. Schema-first with
-gqlgen: `apps/api/internal/graph/schema.graphqls` (regenerate with
-`go generate ./internal/graph`). It covers contracts, events, invocations,
-storage, stats and the watchdog, and resolves only through existing store
-methods.
-
-```graphql
-{
-  contract(id: "C...") {
-    id
-    events(first: 10) { type ledger }
-    stats { eventCount invocationCount }
-    monitor { status }
-    alerts(first: 5) { severity message }
-  }
-}
-```
-
-- **Auth:** same rules as REST reads: anonymous is allowed, an API key needs
-  `read:contracts`. Standard GraphQL POST only; GraphQL requests are not
-  audited because nothing in the schema mutates state.
-- **N+1:** relationship fields (`Alert.contract`, `Contract.monitor`,
-  `Contract.stats`, `Contract.events`, ...) go through per-request
-  dataloaders. Sibling lookups are collected into one batch and each distinct
-  key is fetched once per request.
-- **Limits:** every `first` argument is capped at 100. Each operation must fit
-  `GRAPHQL_COMPLEXITY_LIMIT` (default 5000), where a list field costs its page
-  size times its children, so wide or deep queries are rejected before any
-  store call.
-- **Persisted queries:** automatic persisted queries are supported, and the
-  queries in `internal/graph/persisted/` are preloaded, so clients can send
-  `{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"<sha256>"}}}`.
-  With `GRAPHQL_PERSISTED_ONLY=true` only those allowlisted queries run and
-  introspection is disabled.
+**Responses:**
+- `200`: `{ contract_id, network, label, status, generated_at, stats, latest_event, latest_invocation, health_score }`.
+  `latest_event`, `latest_invocation`, and `health_score` are `null` until the
+  indexer has produced the corresponding data.
+- `404`: the contract is unknown.
 
 ---
 
