@@ -14,7 +14,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable, Toast } from "@sorolens/ui";
 import type { Column } from "@sorolens/ui";
 import { LabelledId } from "@/components/LabelledId";
-import { ApiError, batchContracts, listContracts } from "@/lib/api";
+import { useContracts } from "@/hooks/useContracts";
+import { ApiError, batchContracts } from "@/lib/api";
 import type { BatchContractsAction } from "@/lib/types";
 import { networkFilter, useNetwork } from "@/lib/network";
 import { contractRowKey, isPendingRow } from "@/lib/optimisticTrack";
@@ -406,15 +407,9 @@ function ContractsPageInner() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(() =>
     searchParams?.get(DIR_PARAM) === "asc" ? "asc" : DEFAULT_SORT_DIRECTION
   );
-
-  // Data state
-  const [contracts, setContracts] = useState<ContractRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
   // Pagination state: stack of cursors, index 0 = first page
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [cursorIndex, setCursorIndex] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
 
   // Search state
   const [search, setSearch] = useState("");
@@ -443,48 +438,29 @@ function ContractsPageInner() {
   const dismissToast = useCallback(() => setToast(null), []);
 
   // ---------------------------------------------------------------------------
-  // Data fetching
+  // Data fetching (SWR)
   // ---------------------------------------------------------------------------
 
-  // Only the most recent load() may write to state, so a slow response can't
-  // overwrite a newer page, the optimistic list, or a restored snapshot.
-  const loadSeq = useRef(0);
+  // Every (cursor, network, tag) query is its own SWR cache entry: a visited
+  // page renders instantly from cache and revalidates in the background, and
+  // duplicate requests for the same query are de-duplicated. When the API is
+  // unreachable `data` stays undefined, which falls through to the empty state.
+  const { data, isLoading, mutate } = useContracts({
+    cursor: cursors[cursorIndex] ?? undefined,
+    limit: PAGE_SIZE,
+    network: networkFilter(network),
+    tag: tagFilter || undefined,
+    sort: sortColumn,
+    dir: sortDirection,
+  });
 
-  const load = useCallback(
-    async (cursor: string | null) => {
-      const seq = ++loadSeq.current;
-      setLoading(true);
-      try {
-        const data = await listContracts({
-          cursor: cursor ?? undefined,
-          limit: PAGE_SIZE,
-          network: networkFilter(network),
-          tag: tagFilter || undefined,
-          sort: sortColumn,
-          dir: sortDirection,
-        });
-        if (seq !== loadSeq.current) return;
-        setContracts(data.contracts ?? []);
-        setHasMore(data.has_more ?? false);
-      } catch {
-        if (seq !== loadSeq.current) return;
-        // Backend not reachable yet. Fall through to the empty state so the
-        // page still reads as "waiting for data" instead of "broken".
-        setContracts([]);
-        setHasMore(false);
-      } finally {
-        if (seq === loadSeq.current) setLoading(false);
-      }
-    },
-    [network, tagFilter, sortColumn, sortDirection]
-  );
-
-  useEffect(() => {
-    load(cursors[cursorIndex]);
-  }, [load, cursors, cursorIndex]);
+  const contracts: ContractRow[] = data?.contracts ?? [];
+  const hasMore = data?.has_more ?? false;
+  const loading = isLoading;
 
   // Reset to the first page when the network or tag filter changes. The ref
-  // guard keeps this from firing an extra fetch on mount.
+  // guard keeps this from firing an extra fetch on mount; the filter also
+  // changes the SWR key, which triggers the fetch on its own.
   const prevNetwork = useRef(network);
   const prevTag = useRef(tagFilter);
   useEffect(() => {
@@ -608,8 +584,8 @@ function ContractsPageInner() {
       clearSelection();
       setShowUntrackModal(false);
       setShowTagModal(false);
-      // The list changed, so reload the page the user is looking at.
-      load(cursors[cursorIndex]);
+      // The list changed, so revalidate the page the user is looking at.
+      void mutate();
     } catch (err) {
       const detail = err instanceof ApiError ? err.message : "";
       const verb = action === "untrack" ? "untrack" : "tag";
@@ -657,6 +633,9 @@ function ContractsPageInner() {
   const handleTrackSuccess = () => {
     setCursors([null]);
     setCursorIndex(0);
+    // Revalidate the visible page so a newly tracked/imported contract shows
+    // up even when we were already on page 1 (the SWR key does not change).
+    void mutate();
   };
 
   // Selectable ids on the current page: pending (optimistic) rows are skipped.

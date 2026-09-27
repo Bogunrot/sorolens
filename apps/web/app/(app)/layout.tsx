@@ -9,7 +9,9 @@
  *   Web Push at any time.
  */
 import Link from "next/link";
+import { SWRConfig } from "swr";
 import { NetworkProvider } from "@/lib/network";
+import { swrConfig } from "@/lib/swr";
 import { NetworkSelector } from "@/components/NetworkSelector";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { CmdkSearch } from "@/components/CmdkSearch";
@@ -91,8 +93,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <NetworkProvider>
-      <AppLayoutInner>{children}</AppLayoutInner>
-    </NetworkProvider>
+    <SWRConfig value={swrConfig}>
+      <NetworkProvider>
+        <AppLayoutInner>{children}</AppLayoutInner>
+      </NetworkProvider>
+    </SWRConfig>
   );
 }
