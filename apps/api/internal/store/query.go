@@ -31,6 +31,7 @@ type FullStore interface {
 	WatchlistStore
 	UserStore
 	PerformanceStore
+	GroupStore
 	ContractWasmStore
 	GlobalEventStore
 	ContractVerificationStore

@@ -13,6 +13,29 @@ import (
 
 // MockStore is an in-memory Store + QueryStore implementation for unit tests.
 type MockStore struct {
+	contracts          map[string]Contract
+	events             []Event
+	invocations        []Invocation
+	storageEntries     []StorageEntry
+	syncStates         map[string]SyncState
+	globalStats        GlobalStats
+	monitored          map[string]MonitoredContract
+	healthChecks       []HealthCheck
+	alerts             []ContractAlert
+	apiKeys            []APIKey
+	contractUpgrades   []ContractUpgrade
+	watchlist          map[string]map[string]bool
+	alertSubscriptions []AlertSubscription
+	users              map[string]User
+	healthScores       map[string]ContractHealthScore
+	failedEvents       map[int64]FailedEvent
+	failedEventSeq     int64
+	indexerCursors     map[string]uint32
+	groups             map[string]Group
+	groupContracts     map[string]map[string]bool
+	contractVersions   map[string][]ContractVersion
+	alertGroups        []AlertGroup
+	labels             []Label
 	contracts             map[string]Contract
 	events                []Event
 	invocations           []Invocation
@@ -124,6 +147,17 @@ func (m *MockStore) ResolveLabel(_ context.Context, workspaceID, query string) (
 // NewMockStore returns an initialized MockStore.
 func NewMockStore() *MockStore {
 	return &MockStore{
+		contracts:          make(map[string]Contract),
+		syncStates:         make(map[string]SyncState),
+		monitored:          make(map[string]MonitoredContract),
+		watchlist:          make(map[string]map[string]bool),
+		alerts:             make([]ContractAlert, 0),
+		alertSubscriptions: make([]AlertSubscription, 0),
+		users:              make(map[string]User),
+		indexerCursors:     make(map[string]uint32),
+		groups:             make(map[string]Group),
+		groupContracts:     make(map[string]map[string]bool),
+		contractVersions:   make(map[string][]ContractVersion),
 		contracts:             make(map[string]Contract),
 		syncStates:            make(map[string]SyncState),
 		monitored:             make(map[string]MonitoredContract),

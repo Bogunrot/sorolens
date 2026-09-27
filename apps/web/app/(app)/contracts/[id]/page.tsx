@@ -39,6 +39,7 @@ import { EventsTable } from "@/components/EventsTable";
 import { StoragePanel } from "@/components/StoragePanel";
 import { SnapshotPanel } from "@/components/SnapshotPanel";
 import { HealthScoreCard } from "@/components/HealthScoreCard";
+import { AddToGroup } from "@/components/AddToGroup";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useEventStream } from "@/hooks/useEventStream";
 
@@ -361,6 +362,7 @@ function ContractDetailContent({ id }: { id: string }) {
           >
             {contract?.status}
           </span>
+          <AddToGroup contractId={id} />
           <VerifiedBadge contractId={id} />
         </div>
         {contract?.sync && (
