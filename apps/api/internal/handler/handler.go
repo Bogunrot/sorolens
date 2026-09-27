@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sorolens/sorolens/apps/api/internal/graph"
 	"github.com/sorolens/sorolens/apps/api/internal/middleware"
 	"github.com/sorolens/sorolens/apps/api/internal/store"
 )
@@ -33,6 +34,8 @@ type APIStore interface {
 	store.GlobalEventStore
 	store.ContractVerificationStore
 	store.LabelStore
+	store.WatchedAccountStore
+	store.AuditStore
 }
 
 // Pinger is implemented by both the postgres pool and the Redis client.
@@ -60,6 +63,8 @@ type Handler struct {
 	Redis       Pinger
 	RedisClient RedisClient
 	Logger      *slog.Logger
+	// GraphQL configures the /graphql endpoint (issue #125).
+	GraphQL graph.Options
 	// Cold is optional; when set, event queries fall back to object storage for
 	// ledger ranges that are no longer in Postgres.
 	Cold      ColdEventReader

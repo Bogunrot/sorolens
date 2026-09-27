@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,11 @@ type MockStore struct {
 	contractVerifications map[string]ContractVerification
 	alertGroups           []AlertGroup
 	labels                []Label
+	watchedAccounts       map[string]WatchedAccount
+
+	// auditMu guards auditEvents: the audit middleware writes asynchronously.
+	auditMu     sync.Mutex
+	auditEvents []AuditEvent
 
 	// Error injection
 	UpsertContractErr           error
@@ -72,6 +78,8 @@ type MockStore struct {
 	ListFailedEventsErr  error
 	GetFailedEventErr    error
 	DeleteFailedEventErr error
+
+	InsertAuditErr error
 }
 
 func (m *MockStore) UpsertLabel(_ context.Context, label Label) error {
@@ -131,6 +139,7 @@ func NewMockStore() *MockStore {
 		contractSpecs:         make(map[string]ContractSpec),
 		contractVerifications: make(map[string]ContractVerification),
 		contractVersions:      make(map[string][]ContractVersion),
+		watchedAccounts:       make(map[string]WatchedAccount),
 	}
 }
 

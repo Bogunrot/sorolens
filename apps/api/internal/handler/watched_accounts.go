@@ -52,21 +52,6 @@ func validateAccountID(id string) bool {
 	return want == got
 }
 
-func crc16XModem(data []byte) uint16 {
-	var crc uint16
-	for _, b := range data {
-		crc ^= uint16(b) << 8
-		for i := 0; i < 8; i++ {
-			if crc&0x8000 != 0 {
-				crc = crc<<1 ^ 0x1021
-			} else {
-				crc <<= 1
-			}
-		}
-	}
-	return crc
-}
-
 // ---- handlers ---------------------------------------------------------------
 
 // AddWatchedAccount handles POST /api/v1/watched-accounts.

@@ -51,9 +51,9 @@ func (s *countingStore) GetMonitoredContract(ctx context.Context, id string) (st
 	return s.MockStore.GetMonitoredContract(ctx, id)
 }
 
-func (s *countingStore) ListAlerts(ctx context.Context, contractID, severity, network string, limit int) ([]store.ContractAlert, error) {
+func (s *countingStore) ListAlerts(ctx context.Context, contractID, severity, network, cursor string, limit int) ([]store.ContractAlert, string, error) {
 	s.listAlerts.Add(1)
-	return s.MockStore.ListAlerts(ctx, contractID, severity, network, limit)
+	return s.MockStore.ListAlerts(ctx, contractID, severity, network, cursor, limit)
 }
 
 type barrier struct {

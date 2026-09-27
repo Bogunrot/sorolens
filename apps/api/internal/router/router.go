@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sorolens/sorolens/apps/api/internal/graph"
 	"github.com/sorolens/sorolens/apps/api/internal/handler"
 	"github.com/sorolens/sorolens/apps/api/internal/metrics"
 	"github.com/sorolens/sorolens/apps/api/internal/middleware"
@@ -99,6 +100,17 @@ func New(h *handler.Handler, maxBodyBytes int64) http.Handler {
 	r.With(adminOnly).HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	r.With(adminOnly).HandleFunc("/debug/pprof/trace", pprof.Trace)
 	r.With(adminOnly).HandleFunc("/debug/pprof/{name}", pprof.Index)
+
+	// GraphQL (issue #125): read-only, POST only. Same credential rules as
+	// the REST read routes: anonymous is allowed, an API key needs
+	// read:contracts.
+	gql, err := graph.NewHandler(h.Store, h.GraphQL)
+	if err != nil {
+		// Only fails if the embedded persisted queries are unreadable,
+		// which is a build defect.
+		panic(fmt.Sprintf("graphql handler: %v", err))
+	}
+	r.With(middleware.RequireScopes(h.Store, h.Logger)).Post("/graphql", gql.ServeHTTP)
 
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {

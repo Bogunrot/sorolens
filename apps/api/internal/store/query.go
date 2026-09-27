@@ -36,6 +36,8 @@ type FullStore interface {
 	ContractVerificationStore
 	LabelStore
 	FailedEventStore
+	WatchedAccountStore
+	AuditStore
 }
 
 // NewFullStore returns a FullStore backed by the given pool.

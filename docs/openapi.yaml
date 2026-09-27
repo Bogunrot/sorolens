@@ -56,6 +56,14 @@ tags:
     description: Scoped API key management (admin only)
   - name: Watchlist
     description: Per-user contract watchlists
+  - name: GraphQL
+    description: Read-only GraphQL query surface (POST /graphql)
+  - name: Watched Accounts
+    description: >-
+      Accounts whose new contract deployments are tracked automatically by the
+      indexer (contract discovery)
+  - name: Audit
+    description: Structured audit trail of state-changing API requests (admin only)
   - name: Watchdog
     description: On-chain watchdog monitoring data
 
@@ -128,6 +136,75 @@ paths:
                     type: object
                     additionalProperties:
                       type: string
+
+  /graphql:
+    post:
+      tags: [GraphQL]
+      summary: Read-only GraphQL endpoint
+      description: >-
+        GraphQL query surface over contracts, events, invocations, storage,
+        stats and watchdog data. POST only, GraphQL requests only. Anonymous
+        requests are allowed; an API key needs read:contracts. Query
+        complexity is capped (GRAPHQL_COMPLEXITY_LIMIT) and every list
+        argument at 100.
+      operationId: graphql
+      security:
+        - ApiKeyAuth: [read:contracts]
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  description: GraphQL query document.
+                operationName:
+                  type: string
+                  description: Name of the operation to execute, for multi-operation documents.
+                variables:
+                  type: object
+                  description: Values for the query's GraphQL variables.
+                  additionalProperties: true
+      responses:
+        "200":
+          description: GraphQL response envelope (data and/or errors)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: true
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "400":
+          description: Malformed GraphQL request (parse or validation failure)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ForbiddenRole"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
 
   /api/v1/stats/global:
     get:
@@ -1132,6 +1209,155 @@ paths:
                 $ref: "#/components/schemas/InWatchlist"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/watched-accounts:
+    get:
+      tags: [Watched Accounts]
+      summary: List watched accounts
+      description: Accounts whose new contract deployments the indexer tracks automatically.
+      operationId: listWatchedAccounts
+      security:
+        - ApiKeyAuth: [read:contracts]
+      responses:
+        "200":
+          description: Watched accounts, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [watched_accounts]
+                properties:
+                  watched_accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WatchedAccount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Watched Accounts]
+      summary: Watch an account for new contract deployments
+      description: >-
+        Idempotent: returns 201 when the account is newly watched and 200 when
+        it already was. Same role rules as contract registration.
+      operationId: addWatchedAccount
+      security:
+        - ApiKeyAuth: [write:contracts]
+        - RoleAuth: [contributor]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id]
+              properties:
+                account_id:
+                  type: string
+                  pattern: "^G[A-Za-z2-7]{55}$"
+                  description: Stellar account ID (56 chars, starts with G).
+      responses:
+        "201":
+          description: Account is now watched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchedAccount"
+        "200":
+          description: Account was already watched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchedAccount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ForbiddenRole"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/watched-accounts/{id}:
+    delete:
+      tags: [Watched Accounts]
+      summary: Stop watching an account
+      description: Contracts the account already deployed stay tracked.
+      operationId: deleteWatchedAccount
+      security:
+        - ApiKeyAuth: [write:contracts]
+        - RoleAuth: [contributor]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Stellar account ID to stop watching.
+      responses:
+        "204":
+          description: Account unwatched
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ForbiddenRole"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/admin/audit:
+    get:
+      tags: [Audit]
+      summary: List audit events (admin role only)
+      description: >-
+        Structured trail of every state-changing API request, newest first.
+        Only a SHA-256 hash of each request body is stored, never the body.
+      operationId: listAuditEvents
+      security:
+        - RoleAuth: [admin]
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Only events at or after this RFC 3339 timestamp.
+        - $ref: "#/components/parameters/Limit"
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor from next_cursor of the previous page.
+      responses:
+        "200":
+          description: Page of audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, next_cursor]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+                  next_cursor:
+                    type: string
+                    description: Opaque cursor for the next page; empty when no more pages.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ForbiddenRole"
+        "422":
+          $ref: "#/components/responses/InvalidInput"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -3941,6 +4167,55 @@ components:
       properties:
         in_watchlist:
           type: boolean
+
+    WatchedAccount:
+      type: object
+      required: [account_id, discovered_count, created_at]
+      properties:
+        account_id:
+          type: string
+          description: Stellar account ID (56 chars, starts with G).
+        added_by:
+          type: string
+          description: Actor that registered the account; empty when seeded internally.
+        discovered_count:
+          type: integer
+          format: int64
+          description: Contracts deployed by this account that the indexer has tracked.
+        created_at:
+          type: string
+          format: date-time
+
+    AuditEvent:
+      type: object
+      required: [id, action, status, at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        actor:
+          type: string
+          description: Authenticated actor (API key label or role identity); empty for anonymous requests.
+        action:
+          type: string
+          description: Method and route pattern, e.g. "POST /api/v1/contracts".
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        ip:
+          type: string
+        user_agent:
+          type: string
+        request_body_hash:
+          type: string
+          description: SHA-256 hex of the request body; never the body itself.
+        status:
+          type: integer
+          description: HTTP response status returned for the request.
+        at:
+          type: string
+          format: date-time
 
     WatchdogStats:
       type: object

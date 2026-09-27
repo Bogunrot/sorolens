@@ -152,7 +152,7 @@ func (r *watchdogResolver) Alerts(ctx context.Context, obj *Watchdog, severity *
 	if err != nil {
 		return nil, err
 	}
-	alerts, err := r.Store.ListAlerts(ctx, "", deref(severity), net, limit(first, 50))
+	alerts, _, err := r.Store.ListAlerts(ctx, "", deref(severity), net, "", limit(first, 50))
 	if err != nil {
 		return nil, err
 	}

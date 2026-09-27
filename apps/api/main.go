@@ -89,6 +89,10 @@ func main() {
 		SlackSigningSecret: cfg.SlackSigningSecret,
 		RequestTimeout:     cfg.RequestTimeout,
 		StreamTimeout:      cfg.StreamTimeout,
+		GraphQL: graph.Options{
+			ComplexityLimit: cfg.GraphQLComplexityLimit,
+			PersistedOnly:   cfg.GraphQLPersistedOnly,
+		},
 	}
 
 	if err := seedInitialAdmin(context.Background(), h.Store, cfg.InitialAdminGitHubID, logger); err != nil {

@@ -110,7 +110,8 @@ func NewLoaders(s Store) *Loaders {
 			return entries, err
 		}),
 		Alerts: newLoader(func(ctx context.Context, k alertsKey) ([]store.ContractAlert, error) {
-			return s.ListAlerts(ctx, k.ContractID, k.Severity, "", k.Limit)
+			alerts, _, err := s.ListAlerts(ctx, k.ContractID, k.Severity, "", "", k.Limit)
+			return alerts, err
 		}),
 		HealthChecks: newLoader(func(ctx context.Context, k healthChecksKey) ([]store.HealthCheck, error) {
 			return s.ListHealthChecks(ctx, k.ContractID, k.Limit)

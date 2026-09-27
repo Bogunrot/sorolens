@@ -28,7 +28,7 @@ type Store interface {
 	GetMonitoredContract(ctx context.Context, contractID string) (store.MonitoredContract, error)
 	ListMonitoredContracts(ctx context.Context, cursor string, limit int, network string) ([]store.MonitoredContract, string, error)
 	ListHealthChecks(ctx context.Context, contractID string, limit int) ([]store.HealthCheck, error)
-	ListAlerts(ctx context.Context, contractID, severity, network string, limit int) ([]store.ContractAlert, error)
+	ListAlerts(ctx context.Context, contractID, severity, network, cursor string, limit int) ([]store.ContractAlert, string, error)
 	GetWatchdogStats(ctx context.Context, network string) (store.WatchdogStats, error)
 }
 
