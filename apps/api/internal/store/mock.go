@@ -42,6 +42,11 @@ type MockStore struct {
 	contractSpecs         map[string]ContractSpec
 	contractVerifications map[string]ContractVerification
 	alertRules            []AlertRule
+	watchedAccounts       map[string]WatchedAccount
+
+	// auditMu guards auditEvents: the audit middleware writes asynchronously.
+	auditMu     sync.Mutex
+	auditEvents []AuditEvent
 
 	// Error injection
 	UpsertContractErr           error
@@ -84,6 +89,8 @@ type MockStore struct {
 	GetAlertRuleErr          error
 	ListAlertRulesErr        error
 	ContractMetricSamplesErr error
+
+	InsertAuditErr error
 }
 
 func (m *MockStore) UpsertLabel(_ context.Context, label Label) error {
@@ -145,6 +152,7 @@ func NewMockStore() *MockStore {
 		contractVerifications: make(map[string]ContractVerification),
 		failedEvents:          make(map[int64]FailedEvent),
 		labels:                make([]Label, 0),
+		watchedAccounts:       make(map[string]WatchedAccount),
 	}
 }
 

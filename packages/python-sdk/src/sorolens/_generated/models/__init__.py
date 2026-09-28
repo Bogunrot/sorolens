@@ -2,6 +2,7 @@
 
 from .add_group_contract_body import AddGroupContractBody
 from .add_to_watchlist_body import AddToWatchlistBody
+from .add_watched_account_body import AddWatchedAccountBody
 from .alert_group import AlertGroup
 from .alert_group_severity import AlertGroupSeverity
 from .alert_rule import AlertRule
@@ -13,6 +14,7 @@ from .api_health_response_200 import ApiHealthResponse200
 from .api_health_response_200_db import ApiHealthResponse200Db
 from .api_health_response_200_redis import ApiHealthResponse200Redis
 from .api_key import APIKey
+from .audit_event import AuditEvent
 from .batch_contracts_request import BatchContractsRequest
 from .batch_contracts_request_action import BatchContractsRequestAction
 from .batch_contracts_request_args import BatchContractsRequestArgs
@@ -85,6 +87,13 @@ from .get_contract_report_history_response_200 import (
 from .get_contract_uptime_window import GetContractUptimeWindow
 from .get_global_stats_response_200 import GetGlobalStatsResponse200
 from .get_watchdog_stats_network import GetWatchdogStatsNetwork
+from .graphql_body import GraphqlBody
+from .graphql_body_variables import GraphqlBodyVariables
+from .graphql_response_200 import GraphqlResponse200
+from .graphql_response_200_data import GraphqlResponse200Data
+from .graphql_response_200_errors_item import GraphqlResponse200ErrorsItem
+from .graphql_response_400 import GraphqlResponse400
+from .graphql_response_400_errors_item import GraphqlResponse400ErrorsItem
 from .group import Group
 from .group_contract import GroupContract
 from .group_deleted import GroupDeleted
@@ -113,6 +122,7 @@ from .list_all_invocations_response_200 import ListAllInvocationsResponse200
 from .list_all_invocations_status import ListAllInvocationsStatus
 from .list_api_keys_admin_response_200 import ListApiKeysAdminResponse200
 from .list_api_keys_response_200 import ListApiKeysResponse200
+from .list_audit_events_response_200 import ListAuditEventsResponse200
 from .list_contract_alerts_network import ListContractAlertsNetwork
 from .list_contract_alerts_response_200 import ListContractAlertsResponse200
 from .list_contract_alerts_severity import ListContractAlertsSeverity
@@ -147,6 +157,7 @@ from .list_rule_metrics_response_200_metrics_item import (
 from .list_watchdog_alerts_network import ListWatchdogAlertsNetwork
 from .list_watchdog_alerts_response_200 import ListWatchdogAlertsResponse200
 from .list_watchdog_alerts_severity import ListWatchdogAlertsSeverity
+from .list_watched_accounts_response_200 import ListWatchedAccountsResponse200
 from .live_activity_response_200 import LiveActivityResponse200
 from .monitored_contract import MonitoredContract
 from .monthly_sla import MonthlySLA
@@ -248,6 +259,7 @@ from .verification_source_input_kind import VerificationSourceInputKind
 from .verification_source_kind import VerificationSourceKind
 from .verification_toolchain import VerificationToolchain
 from .watchdog_stats import WatchdogStats
+from .watched_account import WatchedAccount
 from .watchlist import Watchlist
 from .watchlist_item import WatchlistItem
 
@@ -255,6 +267,7 @@ __all__ = (
     "APIKey",
     "AddGroupContractBody",
     "AddToWatchlistBody",
+    "AddWatchedAccountBody",
     "AlertGroup",
     "AlertGroupSeverity",
     "AlertRule",
@@ -265,6 +278,7 @@ __all__ = (
     "ApiHealthResponse200",
     "ApiHealthResponse200Db",
     "ApiHealthResponse200Redis",
+    "AuditEvent",
     "BatchContractsRequest",
     "BatchContractsRequestAction",
     "BatchContractsRequestArgs",
@@ -331,6 +345,13 @@ __all__ = (
     "GetContractUptimeWindow",
     "GetGlobalStatsResponse200",
     "GetWatchdogStatsNetwork",
+    "GraphqlBody",
+    "GraphqlBodyVariables",
+    "GraphqlResponse200",
+    "GraphqlResponse200Data",
+    "GraphqlResponse200ErrorsItem",
+    "GraphqlResponse400",
+    "GraphqlResponse400ErrorsItem",
     "Group",
     "GroupContract",
     "GroupDeleted",
@@ -359,6 +380,7 @@ __all__ = (
     "ListAllInvocationsStatus",
     "ListApiKeysAdminResponse200",
     "ListApiKeysResponse200",
+    "ListAuditEventsResponse200",
     "ListContractAlertsNetwork",
     "ListContractAlertsResponse200",
     "ListContractAlertsSeverity",
@@ -387,6 +409,7 @@ __all__ = (
     "ListWatchdogAlertsNetwork",
     "ListWatchdogAlertsResponse200",
     "ListWatchdogAlertsSeverity",
+    "ListWatchedAccountsResponse200",
     "LiveActivityResponse200",
     "MonitoredContract",
     "MonthlySLA",
@@ -486,6 +509,7 @@ __all__ = (
     "VerificationSourceKind",
     "VerificationToolchain",
     "WatchdogStats",
+    "WatchedAccount",
     "Watchlist",
     "WatchlistItem",
 )

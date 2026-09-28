@@ -327,6 +327,14 @@ func TestV2CoversEveryV1Route(t *testing.T) {
 		"POST /api/v1/groups/{id}/contracts":                true,
 		"DELETE /api/v1/groups/{id}/contracts":              true,
 		"DELETE /api/v1/groups/{id}/contracts/{contractId}": true,
+		// Watched accounts (issue #123): contract-discovery administration
+		// with no v2 envelope yet.
+		"POST /api/v1/watched-accounts":        true,
+		"GET /api/v1/watched-accounts":         true,
+		"DELETE /api/v1/watched-accounts/{id}": true,
+		// Audit trail (issue #122): admin-only introspection of request logs,
+		// not part of the public v2 data surface.
+		"GET /api/v1/admin/audit": true,
 	}
 
 	var missing []string
