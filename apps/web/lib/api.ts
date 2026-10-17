@@ -8,6 +8,9 @@ import type {
   ContractNote,
   ContractNotesResponse,
   CompareResponse,
+  APIHealthResponse,
+  APIVersionResponse,
+  ContractForecastResponse,
   ContractSnapshot,
   ContractSummary,
   ContractTagsResponse,
@@ -17,6 +20,7 @@ import type {
   GlobalStats,
   HealthChecksResponse,
   InvocationsResponse,
+  IndexerStatusResponse,
   LiveActivityResponse,
   MonitoredContract,
   RecentEventsResponse,
@@ -117,6 +121,25 @@ async function fetchNoContent(
     }
     throw new ApiError(res.status, body.error || res.statusText, body.code);
   }
+}
+
+export function getAPIHealth(): Promise<APIHealthResponse> {
+  return fetchJson<APIHealthResponse>(`${API_URL}/api/v1/health`);
+}
+
+export function getAPIReadiness(): Promise<{
+  status: string;
+  checks?: Record<string, string>;
+}> {
+  return fetchJson(`${API_URL}/readyz`);
+}
+
+export function getAPIVersion(): Promise<APIVersionResponse> {
+  return fetchJson<APIVersionResponse>(`${API_URL}/api/version`);
+}
+
+export function getIndexerStatus(): Promise<IndexerStatusResponse> {
+  return fetchJson<IndexerStatusResponse>("/api/status/indexer");
 }
 
 export function listContractsAll(): Promise<ContractsListResponse> {
@@ -457,6 +480,16 @@ export function getContractChangelog(
 ): Promise<ContractVersionEntry[]> {
   return fetchJson<ContractVersionEntry[]>(
     `${API_URL}/api/v1/contracts/${id}/changelog`
+  );
+}
+
+export function getContractForecast(
+  contractId: string,
+  horizonDays = 30
+): Promise<ContractForecastResponse> {
+  const search = new URLSearchParams({ horizon: `${horizonDays}d` });
+  return fetchJson<ContractForecastResponse>(
+    `${API_URL}/api/v1/contracts/${contractId}/forecast?${search.toString()}`
   );
 }
 

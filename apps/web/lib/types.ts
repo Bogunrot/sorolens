@@ -130,6 +130,49 @@ export interface ResourceTrendPoint {
   count: number;
 }
 
+export interface ContractForecastPoint {
+  date: string;
+  value: number;
+  lower: number;
+  upper: number;
+}
+
+export interface ContractForecastSeries {
+  metric: "fees" | "invocations" | "events" | string;
+  horizon: number;
+  daily_count: number;
+  points: ContractForecastPoint[];
+}
+
+export interface ContractForecastResponse {
+  contract_id: string;
+  lookback_days: number;
+  series: ContractForecastSeries[];
+}
+
+export interface APIHealthResponse {
+  status: string;
+  db: string;
+  redis: string;
+  timestamp: string;
+}
+
+export interface APIVersionResponse {
+  version: string;
+  git_sha: string;
+  built_at: string;
+}
+
+export interface IndexerNetworkStatus {
+  network: string;
+  last_indexed_ledger: number | null;
+  lag_ledgers: number | null;
+}
+
+export interface IndexerStatusResponse {
+  networks: IndexerNetworkStatus[];
+}
+
 export interface ContractSummary {
   id: string;
   network: string;

@@ -44,6 +44,7 @@ import { AddToGroup } from "@/components/AddToGroup";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { CallTracePanel } from "@/components/CallTracePanel";
 import { ContractChangelogPanel } from "@/components/ContractChangelogPanel";
+import { ContractForecastChart } from "@/components/ContractForecastChart";
 import { useEventStream } from "@/hooks/useEventStream";
 
 interface Props {
@@ -448,6 +449,8 @@ function ContractDetailContent({ id }: { id: string }) {
           </div>
         )}
       </section>
+
+      <ContractForecastChart contractId={id} />
 
       <section className="mb-8">
         <div className="mb-4 flex items-center justify-between">
